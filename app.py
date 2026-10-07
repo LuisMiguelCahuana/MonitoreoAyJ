@@ -1163,39 +1163,196 @@ else:
     )
 
 
-    # ========================================================
-    # GENERAR HTML
-    # ========================================================
-
-    html = tabla.to_html(
-
-        index=False,
-
-        escape=False,
-
-        classes="tabla-supervisor"
-
+# ========================================================
+# ESTILO TABLA
+# ========================================================
+    
+    st.markdown(
+        """
+        <style>
+    
+        /* ====================================================
+           CONTENEDOR DE LA TABLA
+           ==================================================== */
+    
+        .contenedor-tabla-supervisor {
+    
+            width: 100%;
+    
+            overflow-x: auto;
+    
+            margin-top: 10px;
+    
+        }
+    
+    
+        /* ====================================================
+           TABLA
+           ==================================================== */
+    
+        .contenedor-tabla-supervisor table {
+    
+            width: 100%;
+    
+            min-width: 1800px;
+    
+            border-collapse: collapse;
+    
+            font-size: 13px;
+    
+        }
+    
+    
+        /* ====================================================
+           ENCABEZADOS
+           ==================================================== */
+    
+        .contenedor-tabla-supervisor table th {
+    
+            background-color: #1f2937 !important;
+    
+            color: #ffffff !important;
+    
+            padding: 8px;
+    
+            border: 1px solid #4b5563 !important;
+    
+            text-align: center;
+    
+            white-space: nowrap;
+    
+            font-weight: 700;
+    
+        }
+    
+    
+        /* ====================================================
+           CELDAS
+           ==================================================== */
+    
+        .contenedor-tabla-supervisor table td {
+    
+            padding: 8px;
+    
+            border: 1px solid #4b5563 !important;
+    
+            white-space: nowrap;
+    
+        }
+    
+    
+        /* ====================================================
+           ENLACES
+           ==================================================== */
+    
+        .contenedor-tabla-supervisor table a {
+    
+            text-decoration: none;
+    
+            font-weight: bold;
+    
+        }
+    
+    
+        /* ====================================================
+           MODO OSCURO
+           ==================================================== */
+    
+        @media (prefers-color-scheme: dark) {
+    
+            .contenedor-tabla-supervisor table th {
+    
+                background-color: #111827 !important;
+    
+                color: #ffffff !important;
+    
+                border-color: #4b5563 !important;
+    
+            }
+    
+    
+            .contenedor-tabla-supervisor table td {
+    
+                color: #f3f4f6 !important;
+    
+                background-color: #1f2937 !important;
+    
+                border-color: #4b5563 !important;
+    
+            }
+    
+    
+            .contenedor-tabla-supervisor table a {
+    
+                color: #60a5fa !important;
+    
+            }
+    
+        }
+    
+    
+        /* ====================================================
+           MODO CLARO
+           ==================================================== */
+    
+        @media (prefers-color-scheme: light) {
+    
+            .contenedor-tabla-supervisor table th {
+    
+                background-color: #1f2937 !important;
+    
+                color: #ffffff !important;
+    
+            }
+    
+    
+            .contenedor-tabla-supervisor table td {
+    
+                color: #111827 !important;
+    
+                background-color: #ffffff !important;
+    
+            }
+    
+    
+            .contenedor-tabla-supervisor table a {
+    
+                color: #2563eb !important;
+    
+            }
+    
+        }
+    
+        </style>
+        """,
+        unsafe_allow_html=True
     )
-
-
+    
+    
+    # ========================================================
+    # GENERAR HTML DE LA TABLA
+    # ========================================================
+    
+    html = tabla.to_html(
+        index=False,
+        escape=False,
+        classes="tabla-supervisor",
+        border=1
+    )
+    
+    
     # ========================================================
     # MOSTRAR TABLA
     # ========================================================
-
+    
     st.markdown(
-
         f"""
-        <div class="tabla-supervisor">
-
+        <div class="contenedor-tabla-supervisor">
             {html}
-
         </div>
         """,
-
         unsafe_allow_html=True
-
     )
-
 
 # ============================================================
 # BOTÓN ACTUALIZAR
