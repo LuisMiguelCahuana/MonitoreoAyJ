@@ -19,188 +19,17 @@ st.set_page_config(
 
 
 # ============================================================
-# ESTILOS
+# CONFIGURACIÓN GOOGLE SHEETS
 # ============================================================
 
-st.markdown(
-    """
-    <style>
+NOMBRE_ARCHIVO = "KM_DISTRIBUCION"
 
-    /* ========================================================
-       TÍTULO
-       ======================================================== */
+NOMBRE_HOJA = "Distribucion"
 
-    .titulo-principal {
-        text-align: center;
-        font-size: 28px;
-        font-weight: 800;
-        margin-bottom: 5px;
-    }
-
-    .subtitulo {
-        text-align: center;
-        font-size: 14px;
-        margin-bottom: 20px;
-    }
-
-
-    /* ========================================================
-       BOTÓN ACTUALIZAR
-       ======================================================== */
-
-    div.stButton > button {
-        width: 100%;
-        font-weight: 700;
-        border-radius: 8px;
-    }
-
-
-    /* ========================================================
-       MÉTRICAS
-       ======================================================== */
-
-    .metric-box {
-        border: 1px solid #d1d5db;
-        border-radius: 10px;
-        padding: 12px;
-        text-align: center;
-        background-color: #f9fafb;
-    }
-
-    .metric-titulo {
-        font-size: 13px;
-        font-weight: 600;
-    }
-
-    .metric-valor {
-        font-size: 24px;
-        font-weight: 800;
-    }
-
-
-    /* ========================================================
-       CONTENEDOR DE TABLA
-       ======================================================== */
-
-    .contenedor-tabla {
-        width: 100%;
-        overflow-x: auto;
-        margin-top: 10px;
-    }
-
-
-    /* ========================================================
-       TABLA
-       ======================================================== */
-
-    .tabla-supervisor {
-        width: 100%;
-        border-collapse: collapse;
-        font-size: 13px;
-        min-width: 1800px;
-    }
-
-
-    /* ENCABEZADOS */
-
-    .tabla-supervisor th {
-        background-color: #1f2937 !important;
-        color: #ffffff !important;
-        font-weight: 700 !important;
-        text-align: center !important;
-        vertical-align: middle !important;
-        padding: 10px 8px !important;
-        border: 1px solid #4b5563 !important;
-        white-space: nowrap !important;
-    }
-
-
-    /* CELDAS */
-
-    .tabla-supervisor td {
-        padding: 8px !important;
-        border: 1px solid #d1d5db !important;
-        white-space: nowrap !important;
-        vertical-align: middle !important;
-    }
-
-
-    /* FILAS */
-
-    .tabla-supervisor tr:nth-child(even) {
-        background-color: #f9fafb;
-    }
-
-    .tabla-supervisor tr:hover {
-        background-color: #e5e7eb;
-    }
-
-
-    /* ENLACES */
-
-    .tabla-supervisor a {
-        text-decoration: none !important;
-        font-weight: 700 !important;
-    }
-
-
-    /* ========================================================
-       MODO OSCURO
-       ======================================================== */
-
-    @media (prefers-color-scheme: dark) {
-
-        .titulo-principal {
-            color: #ffffff !important;
-        }
-
-        .subtitulo {
-            color: #d1d5db !important;
-        }
-
-        .metric-box {
-            background-color: #1f2937 !important;
-            border-color: #4b5563 !important;
-            color: #ffffff !important;
-        }
-
-        .metric-titulo {
-            color: #d1d5db !important;
-        }
-
-        .metric-valor {
-            color: #ffffff !important;
-        }
-
-        .tabla-supervisor {
-            color: #ffffff !important;
-        }
-
-        .tabla-supervisor th {
-            background-color: #111827 !important;
-            color: #ffffff !important;
-            border-color: #4b5563 !important;
-        }
-
-        .tabla-supervisor td {
-            background-color: #1f2937 !important;
-            color: #ffffff !important;
-            border-color: #4b5563 !important;
-        }
-
-        .tabla-supervisor tr:nth-child(even) td {
-            background-color: #374151 !important;
-        }
-
-        .tabla-supervisor tr:hover td {
-            background-color: #4b5563 !important;
-        }
-    }
-
-    </style>
-    """,
-    unsafe_allow_html=True
-)
+SCOPES = [
+    "https://www.googleapis.com/auth/spreadsheets",
+    "https://www.googleapis.com/auth/drive"
+]
 
 
 # ============================================================
@@ -210,41 +39,50 @@ st.markdown(
 @st.cache_resource
 def conectar_google():
 
-    scopes = [
-        "https://www.googleapis.com/auth/spreadsheets",
-        "https://www.googleapis.com/auth/drive"
-    ]
-
-    credentials = Credentials.from_service_account_info(
-        st.secrets["GOOGLE_CREDENTIALS"],
-        scopes=scopes
+    credenciales = Credentials.from_service_account_info(
+        st.secrets["gcp_service_account"],
+        scopes=SCOPES
     )
 
-    cliente = gspread.authorize(credentials)
+    cliente = gspread.authorize(
+        credenciales
+    )
 
     return cliente
 
 
-# ============================================================
-# LEER HOJA
-# ============================================================
-
-@st.cache_data(ttl=30)
-def leer_datos():
+@st.cache_resource
+def obtener_hoja():
 
     cliente = conectar_google()
 
-    archivo = cliente.open("KM_DISTRIBUCION")
+    spreadsheet = cliente.open(
+        NOMBRE_ARCHIVO
+    )
 
-    hoja = archivo.worksheet("Distribucion")
+    hoja = spreadsheet.worksheet(
+        NOMBRE_HOJA
+    )
 
-    datos = hoja.get(
+    return hoja
+
+
+# ============================================================
+# LEER DATOS
+# ============================================================
+
+def cargar_datos():
+
+    hoja = obtener_hoja()
+
+    valores = hoja.get(
         "A:U",
         value_render_option="FORMATTED_VALUE"
     )
 
-    if not datos:
+    if not valores:
         return pd.DataFrame()
+
 
     encabezados = [
         "Fecha",
@@ -270,21 +108,48 @@ def leer_datos():
         "Observacion"
     ]
 
+
     filas = []
 
-    for fila in datos[1:]:
+
+    for fila in valores[1:]:
 
         fila = list(fila)
 
-        while len(fila) < 21:
-            fila.append("")
 
-        filas.append(fila[:21])
+        if len(fila) < 21:
+
+            fila += [
+                ""
+            ] * (
+                21 - len(fila)
+            )
+
+
+        filas.append(
+            fila[:21]
+        )
+
 
     df = pd.DataFrame(
         filas,
         columns=encabezados
     )
+
+
+    # --------------------------------------------------------
+    # ELIMINAR FILAS COMPLETAMENTE VACÍAS
+    # --------------------------------------------------------
+
+    df = df[
+        df.astype(str)
+        .apply(
+            lambda x:
+            x.str.strip().ne("").any(),
+            axis=1
+        )
+    ].copy()
+
 
     return df
 
@@ -295,13 +160,79 @@ def leer_datos():
 
 def normalizar_texto(valor):
 
-    if valor is None:
-        return ""
-
     if pd.isna(valor):
+
         return ""
 
-    return str(valor).strip()
+
+    return str(
+        valor
+    ).strip()
+
+
+# ============================================================
+# PREPARAR DATOS
+# ============================================================
+
+def preparar_datos(df):
+
+    if df.empty:
+
+        return df
+
+
+    columnas_texto = [
+        "Fecha",
+        "Placa",
+        "Hora Inicio",
+        "Km Inicial",
+        "Hora Fin",
+        "Km Final",
+        "Tot Recorrido",
+        "Nom Personal",
+        "Celular",
+        "Cuadrilla",
+        "Item",
+        "Unidad Negocio",
+        "Servicio Electrico",
+        "Nº OM | Cod. Recibo",
+        "Descripcion Actividad",
+        "CECO",
+        "Foto KM Inicial",
+        "Foto KM Final",
+        "Ubicacion Inicial",
+        "Ubicacion Final",
+        "Observacion"
+    ]
+
+
+    for columna in columnas_texto:
+
+        df[columna] = (
+            df[columna]
+            .apply(normalizar_texto)
+        )
+
+
+    # ========================================================
+    # ESTADO
+    # ========================================================
+
+    df["Estado"] = df.apply(
+
+        lambda fila:
+
+        "🟢 COMPLETADO"
+
+        if fila["Km Final"] != ""
+
+        else "🟠 PENDIENTE KM FINAL",
+
+        axis=1
+    )
+
+
+    return df
 
 
 # ============================================================
@@ -310,61 +241,116 @@ def normalizar_texto(valor):
 
 def extraer_url(valor):
 
-    valor = normalizar_texto(valor)
-
-    if not valor:
-        return ""
-
-    # HYPERLINK("URL";"texto")
-    patron_1 = r'HYPERLINK\("([^"]+)"'
-
-    resultado = re.search(
-        patron_1,
-        valor,
-        flags=re.IGNORECASE
-    )
-
-    if resultado:
-        return resultado.group(1)
-
-    # HYPERLINK("URL","texto")
-    patron_2 = r'HYPERLINK\("([^"]+)"'
-
-    resultado = re.search(
-        patron_2,
-        valor,
-        flags=re.IGNORECASE
-    )
-
-    if resultado:
-        return resultado.group(1)
-
-    # URL directa
-    patron_3 = r'(https?://[^\s"]+)'
-
-    resultado = re.search(
-        patron_3,
+    valor = normalizar_texto(
         valor
     )
 
-    if resultado:
-        return resultado.group(1)
+
+    if valor == "":
+
+        return ""
+
+
+    # --------------------------------------------------------
+    # HYPERLINK
+    # --------------------------------------------------------
+
+    if "HYPERLINK" in valor.upper():
+
+        encontrado = re.search(
+            r'"(https?://[^"]+)"',
+            valor
+        )
+
+
+        if encontrado:
+
+            return encontrado.group(1)
+
+
+    # --------------------------------------------------------
+    # URL DIRECTA
+    # --------------------------------------------------------
+
+    if (
+        valor.startswith(
+            "http://"
+        )
+        or
+        valor.startswith(
+            "https://"
+        )
+    ):
+
+        return valor
+
 
     return ""
 
 
 # ============================================================
-# CREAR ENLACE HTML
+# CONVERTIR FOTO EN ENLACE
 # ============================================================
 
-def crear_enlace(valor, texto):
+def convertir_enlace_foto(
+    valor
+):
 
-    url = extraer_url(valor)
+    url = extraer_url(
+        valor
+    )
 
-    if not url:
+
+    if url == "":
+
         return "—"
 
-    return f'<a href="{url}" target="_blank">{texto}</a>'
+
+    return (
+        f'<a href="{url}" '
+        f'target="_blank">'
+        f'📷 Ver foto'
+        f'</a>'
+    )
+
+
+# ============================================================
+# CONVERTIR UBICACIÓN EN ENLACE
+# ============================================================
+
+def convertir_enlace_ubicacion(
+    valor
+):
+
+    valor = normalizar_texto(
+        valor
+    )
+
+
+    if valor == "":
+
+        return "—"
+
+
+    if (
+        valor.startswith(
+            "http://"
+        )
+        or
+        valor.startswith(
+            "https://"
+        )
+    ):
+
+        return (
+            f'<a href="{valor}" '
+            f'target="_blank">'
+            f'📍 Ver ubicación'
+            f'</a>'
+        )
+
+
+    return valor
 
 
 # ============================================================
@@ -372,114 +358,64 @@ def crear_enlace(valor, texto):
 # ============================================================
 
 st.markdown(
-    '<div class="titulo-principal">🛻 MONITOR KM DISTRIBUCIÓN</div>',
+    """
+    <h1 style="
+        text-align:center;
+        margin-bottom:0;
+    ">
+        🛻 MONITOR DE KILOMETRAJE
+        DISTRIBUCIÓN
+    </h1>
+
+    <p style="
+        text-align:center;
+        color:#666;
+        font-size:16px;
+        margin-top:0;
+    ">
+        Supervisión de registros de KM_DISTRIBUCION
+    </p>
+    """,
     unsafe_allow_html=True
 )
-
-st.markdown(
-    '<div class="subtitulo">Seguimiento de kilometraje de vehículos - Distribución</div>',
-    unsafe_allow_html=True
-)
-
-
-# ============================================================
-# BOTÓN ACTUALIZAR
-# ============================================================
-
-col_actualizar, col_espacio = st.columns([1, 5])
-
-with col_actualizar:
-
-    if st.button(
-        "🔄 Actualizar",
-        use_container_width=True
-    ):
-
-        leer_datos.clear()
-
-        st.rerun()
 
 
 # ============================================================
 # CARGAR DATOS
 # ============================================================
 
-df = leer_datos()
+try:
 
+    df = cargar_datos()
 
-if df.empty:
+except Exception as e:
 
-    st.warning("No existen registros en la hoja Distribucion.")
+    st.error(
+        "❌ No se pudo conectar con "
+        "Google Sheets."
+    )
+
+    st.exception(e)
 
     st.stop()
 
 
 # ============================================================
-# NORMALIZAR COLUMNAS
+# VALIDAR DATOS
 # ============================================================
 
-for columna in df.columns:
+if df.empty:
 
-    df[columna] = df[columna].apply(
-        normalizar_texto
+    st.info(
+        "ℹ️ No existen registros en "
+        "la hoja Distribucion."
     )
 
-
-# ============================================================
-# ELIMINAR FILAS COMPLETAMENTE VACÍAS
-# ============================================================
-
-columnas_datos = [
-    "Fecha",
-    "Placa",
-    "Hora Inicio",
-    "Km Inicial",
-    "Hora Fin",
-    "Km Final",
-    "Nom Personal"
-]
-
-df = df[
-    df[columnas_datos]
-    .fillna("")
-    .astype(str)
-    .apply(
-        lambda fila: fila.str.strip().ne("").any(),
-        axis=1
-    )
-].copy()
+    st.stop()
 
 
-# ============================================================
-# ESTADO
-# ============================================================
-
-df["Estado"] = df["Km Final"].apply(
-    lambda x:
-        "🟢 COMPLETADO"
-        if normalizar_texto(x)
-        else "🟠 PENDIENTE KM FINAL"
-)
-
-
-# ============================================================
-# ORDENAR POR FECHA
-# ============================================================
-
-df["_fecha_orden"] = pd.to_datetime(
-    df["Fecha"],
-    errors="coerce",
-    dayfirst=True
-)
-
-df = df.sort_values(
-    "_fecha_orden",
-    ascending=False
-)
-
-df.drop(
-    columns=["_fecha_orden"],
-    inplace=True
+df = preparar_datos(
+    df
 )
 
 
@@ -487,128 +423,278 @@ df.drop(
 # FILTROS
 # ============================================================
 
-st.markdown("### 🔎 Filtros")
+st.markdown(
+    "### 🔎 FILTROS"
+)
 
+
+# ============================================================
+# PRIMERA FILA
+# ============================================================
 
 col1, col2, col3, col4 = st.columns(4)
 
 
+# ------------------------------------------------------------
+# FECHA
+# ------------------------------------------------------------
+
+fechas = sorted(
+
+    [
+        x
+        for x in
+        df["Fecha"]
+        .dropna()
+        .unique()
+        .tolist()
+
+        if str(x).strip() != ""
+    ],
+
+    reverse=True
+)
+
+
 with col1:
 
-    fechas = sorted(
-        [
-            x for x in df["Fecha"].unique()
-            if normalizar_texto(x)
-        ],
-        reverse=True
-    )
+    fecha_filtro = st.selectbox(
 
-    filtro_fecha = st.multiselect(
-        "Fecha",
+        "📅 Fecha",
+
+        [
+            "TODAS"
+        ]
+        +
         fechas
     )
 
 
+# ------------------------------------------------------------
+# PLACA
+# ------------------------------------------------------------
+
+placas = sorted(
+
+    [
+        x
+        for x in
+        df["Placa"]
+        .dropna()
+        .unique()
+        .tolist()
+
+        if str(x).strip() != ""
+    ]
+
+)
+
+
 with col2:
 
-    placas = sorted(
-        [
-            x for x in df["Placa"].unique()
-            if normalizar_texto(x)
-        ]
-    )
+    placa_filtro = st.selectbox(
 
-    filtro_placa = st.multiselect(
-        "Placa",
+        "🛻 Placa",
+
+        [
+            "TODAS"
+        ]
+        +
         placas
     )
 
 
+# ------------------------------------------------------------
+# PERSONAL
+# ------------------------------------------------------------
+
+personales = sorted(
+
+    [
+        x
+        for x in
+        df["Nom Personal"]
+        .dropna()
+        .unique()
+        .tolist()
+
+        if str(x).strip() != ""
+    ]
+
+)
+
+
 with col3:
 
-    personal = sorted(
+    personal_filtro = st.selectbox(
+
+        "👷 Personal",
+
         [
-            x for x in df["Nom Personal"].unique()
-            if normalizar_texto(x)
+            "TODOS"
         ]
+        +
+        personales
     )
 
-    filtro_personal = st.multiselect(
-        "Personal",
-        personal
-    )
 
+# ------------------------------------------------------------
+# ESTADO
+# ------------------------------------------------------------
 
 with col4:
 
-    filtro_estado = st.multiselect(
-        "Estado",
+    estado_filtro = st.selectbox(
+
+        "📌 Estado",
+
         [
-            "🟢 COMPLETADO",
-            "🟠 PENDIENTE KM FINAL"
+            "TODOS",
+            "🟠 PENDIENTE KM FINAL",
+            "🟢 COMPLETADO"
         ]
     )
 
+
+# ============================================================
+# SEGUNDA FILA
+# ============================================================
 
 col5, col6, col7, col8 = st.columns(4)
 
 
+# ------------------------------------------------------------
+# UNIDAD
+# ------------------------------------------------------------
+
+unidades = sorted(
+
+    [
+        x
+        for x in
+        df["Unidad Negocio"]
+        .dropna()
+        .unique()
+        .tolist()
+
+        if str(x).strip() != ""
+    ]
+
+)
+
+
 with col5:
 
-    unidades = sorted(
-        [
-            x for x in df["Unidad Negocio"].unique()
-            if normalizar_texto(x)
-        ]
-    )
+    unidad_filtro = st.selectbox(
 
-    filtro_unidad = st.multiselect(
-        "Unidad de Negocio",
+        "🏢 Unidad de Negocio",
+
+        [
+            "TODAS"
+        ]
+        +
         unidades
     )
 
 
+# ------------------------------------------------------------
+# SERVICIO
+# ------------------------------------------------------------
+
+servicios = sorted(
+
+    [
+        x
+        for x in
+        df["Servicio Electrico"]
+        .dropna()
+        .unique()
+        .tolist()
+
+        if str(x).strip() != ""
+    ]
+
+)
+
+
 with col6:
 
-    servicios = sorted(
-        [
-            x for x in df["Servicio Electrico"].unique()
-            if normalizar_texto(x)
-        ]
-    )
+    servicio_filtro = st.selectbox(
 
-    filtro_servicio = st.multiselect(
-        "Servicio Eléctrico",
+        "⚡ Servicio Eléctrico",
+
+        [
+            "TODOS"
+        ]
+        +
         servicios
     )
 
 
+# ------------------------------------------------------------
+# ITEM
+# ------------------------------------------------------------
+
+items = sorted(
+
+    [
+        x
+        for x in
+        df["Item"]
+        .dropna()
+        .unique()
+        .tolist()
+
+        if str(x).strip() != ""
+    ]
+
+)
+
+
 with col7:
 
-    items = sorted(
-        [
-            x for x in df["Item"].unique()
-            if normalizar_texto(x)
-        ]
-    )
+    item_filtro = st.selectbox(
 
-    filtro_item = st.multiselect(
-        "Ítem",
+        "📋 Ítem",
+
+        [
+            "TODOS"
+        ]
+        +
         items
     )
 
 
+# ------------------------------------------------------------
+# CECO
+# ------------------------------------------------------------
+
+cecos = sorted(
+
+    [
+        x
+        for x in
+        df["CECO"]
+        .dropna()
+        .unique()
+        .tolist()
+
+        if str(x).strip() != ""
+    ]
+
+)
+
+
 with col8:
 
-    cecos = sorted(
-        [
-            x for x in df["CECO"].unique()
-            if normalizar_texto(x)
-        ]
-    )
+    ceco_filtro = st.selectbox(
 
-    filtro_ceco = st.multiselect(
-        "CECO",
+        "🏷️ CECO",
+
+        [
+            "TODOS"
+        ]
+        +
         cecos
     )
 
@@ -620,305 +706,463 @@ with col8:
 df_filtrado = df.copy()
 
 
-if filtro_fecha:
+if fecha_filtro != "TODAS":
 
     df_filtrado = df_filtrado[
-        df_filtrado["Fecha"].isin(filtro_fecha)
+        df_filtrado["Fecha"]
+        == fecha_filtro
     ]
 
 
-if filtro_placa:
+if placa_filtro != "TODAS":
 
     df_filtrado = df_filtrado[
-        df_filtrado["Placa"].isin(filtro_placa)
+        df_filtrado["Placa"]
+        == placa_filtro
     ]
 
 
-if filtro_personal:
+if personal_filtro != "TODOS":
 
     df_filtrado = df_filtrado[
-        df_filtrado["Nom Personal"].isin(filtro_personal)
+        df_filtrado["Nom Personal"]
+        == personal_filtro
     ]
 
 
-if filtro_estado:
+if estado_filtro != "TODOS":
 
     df_filtrado = df_filtrado[
-        df_filtrado["Estado"].isin(filtro_estado)
+        df_filtrado["Estado"]
+        == estado_filtro
     ]
 
 
-if filtro_unidad:
+if unidad_filtro != "TODAS":
 
     df_filtrado = df_filtrado[
-        df_filtrado["Unidad Negocio"].isin(filtro_unidad)
+        df_filtrado["Unidad Negocio"]
+        == unidad_filtro
     ]
 
 
-if filtro_servicio:
+if servicio_filtro != "TODOS":
 
     df_filtrado = df_filtrado[
-        df_filtrado["Servicio Electrico"].isin(filtro_servicio)
+        df_filtrado["Servicio Electrico"]
+        == servicio_filtro
     ]
 
 
-if filtro_item:
+if item_filtro != "TODOS":
 
     df_filtrado = df_filtrado[
-        df_filtrado["Item"].isin(filtro_item)
+        df_filtrado["Item"]
+        == item_filtro
     ]
 
 
-if filtro_ceco:
+if ceco_filtro != "TODOS":
 
     df_filtrado = df_filtrado[
-        df_filtrado["CECO"].isin(filtro_ceco)
+        df_filtrado["CECO"]
+        == ceco_filtro
     ]
 
 
 # ============================================================
-# MÉTRICAS
+# RESUMEN
 # ============================================================
 
-total_registros = len(df_filtrado)
+total_registros = len(
+    df_filtrado
+)
+
 
 total_vehiculos = (
+
     df_filtrado["Placa"]
-    .replace("", pd.NA)
+    .replace(
+        "",
+        pd.NA
+    )
     .dropna()
     .nunique()
 )
+
 
 total_personal = (
+
     df_filtrado["Nom Personal"]
-    .replace("", pd.NA)
+    .replace(
+        "",
+        pd.NA
+    )
     .dropna()
     .nunique()
 )
 
+
 total_pendientes = len(
+
     df_filtrado[
-        df_filtrado["Estado"] ==
-        "🟠 PENDIENTE KM FINAL"
+        df_filtrado["Km Final"]
+        == ""
     ]
 )
+
 
 total_completados = len(
+
     df_filtrado[
-        df_filtrado["Estado"] ==
-        "🟢 COMPLETADO"
+        df_filtrado["Km Final"]
+        != ""
     ]
 )
 
 
-# ============================================================
-# MOSTRAR MÉTRICAS
-# ============================================================
-
-st.markdown("### 📊 Resumen")
-
-
-m1, m2, m3, m4, m5 = st.columns(5)
-
-
-with m1:
-
-    st.markdown(
-        f"""
-        <div class="metric-box">
-            <div class="metric-titulo">Registros</div>
-            <div class="metric-valor">{total_registros}</div>
-        </div>
-        """,
-        unsafe_allow_html=True
-    )
-
-
-with m2:
-
-    st.markdown(
-        f"""
-        <div class="metric-box">
-            <div class="metric-titulo">Vehículos</div>
-            <div class="metric-valor">{total_vehiculos}</div>
-        </div>
-        """,
-        unsafe_allow_html=True
-    )
-
-
-with m3:
-
-    st.markdown(
-        f"""
-        <div class="metric-box">
-            <div class="metric-titulo">Personal</div>
-            <div class="metric-valor">{total_personal}</div>
-        </div>
-        """,
-        unsafe_allow_html=True
-    )
-
-
-with m4:
-
-    st.markdown(
-        f"""
-        <div class="metric-box">
-            <div class="metric-titulo">Pendientes</div>
-            <div class="metric-valor">{total_pendientes}</div>
-        </div>
-        """,
-        unsafe_allow_html=True
-    )
-
-
-with m5:
-
-    st.markdown(
-        f"""
-        <div class="metric-box">
-            <div class="metric-titulo">Completados</div>
-            <div class="metric-valor">{total_completados}</div>
-        </div>
-        """,
-        unsafe_allow_html=True
-    )
-
-
-# ============================================================
-# PREPARAR TABLA PARA MOSTRAR
-# ============================================================
-
-df_mostrar = df_filtrado.copy()
-
-
-# ============================================================
-# ENLACES DE FOTOS
-# ============================================================
-
-df_mostrar["Foto KM Inicial"] = df_mostrar[
-    "Foto KM Inicial"
-].apply(
-    lambda x: crear_enlace(
-        x,
-        "📷 Ver foto"
-    )
+st.markdown(
+    "### 📊 RESUMEN"
 )
 
 
-df_mostrar["Foto KM Final"] = df_mostrar[
-    "Foto KM Final"
-].apply(
-    lambda x: crear_enlace(
-        x,
-        "📷 Ver foto"
+k1, k2, k3, k4, k5 = st.columns(5)
+
+
+with k1:
+
+    st.metric(
+        "📋 Registros",
+        total_registros
     )
-)
 
 
-# ============================================================
-# ENLACES DE UBICACIONES
-# ============================================================
+with k2:
 
-df_mostrar["Ubicacion Inicial"] = df_mostrar[
-    "Ubicacion Inicial"
-].apply(
-    lambda x: crear_enlace(
-        x,
-        "📍 Ver ubicación"
+    st.metric(
+        "🛻 Vehículos",
+        total_vehiculos
     )
-)
 
 
-df_mostrar["Ubicacion Final"] = df_mostrar[
-    "Ubicacion Final"
-].apply(
-    lambda x: crear_enlace(
-        x,
-        "📍 Ver ubicación"
+with k3:
+
+    st.metric(
+        "👷 Personal",
+        total_personal
     )
-)
+
+
+with k4:
+
+    st.metric(
+        "🟠 Pendientes",
+        total_pendientes
+    )
+
+
+with k5:
+
+    st.metric(
+        "🟢 Completados",
+        total_completados
+    )
 
 
 # ============================================================
-# ORDEN DE COLUMNAS
-# ============================================================
-
-columnas_tabla = [
-    "Fecha",
-    "Placa",
-    "Hora Inicio",
-    "Km Inicial",
-    "Hora Fin",
-    "Km Final",
-    "Tot Recorrido",
-    "Nom Personal",
-    "Celular",
-    "Cuadrilla",
-    "Item",
-    "Unidad Negocio",
-    "Servicio Electrico",
-    "Nº OM | Cod. Recibo",
-    "Descripcion Actividad",
-    "CECO",
-    "Estado",
-    "Foto KM Inicial",
-    "Foto KM Final",
-    "Ubicacion Inicial",
-    "Ubicacion Final",
-    "Observacion"
-]
-
-
-df_mostrar = df_mostrar[
-    columnas_tabla
-]
-
-
-# ============================================================
-# TÍTULO DE TABLA
+# TABLA PRINCIPAL
 # ============================================================
 
 st.markdown(
-    f"### 📋 Registros ({len(df_mostrar)})"
+    "### 📋 REGISTROS"
 )
 
 
-# ============================================================
-# SI NO HAY RESULTADOS
-# ============================================================
+if df_filtrado.empty:
 
-if df_mostrar.empty:
-
-    st.info(
-        "No existen registros con los filtros seleccionados."
+    st.warning(
+        "No existen registros con "
+        "los filtros seleccionados."
     )
 
-    st.stop()
+else:
+
+    df_mostrar = (
+        df_filtrado.copy()
+    )
+
+
+    # --------------------------------------------------------
+    # FOTOS
+    # --------------------------------------------------------
+
+    df_mostrar[
+        "📷 KM Inicial"
+    ] = (
+
+        df_mostrar[
+            "Foto KM Inicial"
+        ]
+
+        .apply(
+            convertir_enlace_foto
+        )
+    )
+
+
+    df_mostrar[
+        "📷 KM Final"
+    ] = (
+
+        df_mostrar[
+            "Foto KM Final"
+        ]
+
+        .apply(
+            convertir_enlace_foto
+        )
+    )
+
+
+    # --------------------------------------------------------
+    # UBICACIONES
+    # --------------------------------------------------------
+
+    df_mostrar[
+        "📍 Ubicación Inicial"
+    ] = (
+
+        df_mostrar[
+            "Ubicacion Inicial"
+        ]
+
+        .apply(
+            convertir_enlace_ubicacion
+        )
+    )
+
+
+    df_mostrar[
+        "📍 Ubicación Final"
+    ] = (
+
+        df_mostrar[
+            "Ubicacion Final"
+        ]
+
+        .apply(
+            convertir_enlace_ubicacion
+        )
+    )
+
+
+    # --------------------------------------------------------
+    # COLUMNAS
+    # --------------------------------------------------------
+
+    columnas_mostrar = [
+
+        "Fecha",
+        "Placa",
+        "Hora Inicio",
+        "Km Inicial",
+        "Hora Fin",
+        "Km Final",
+        "Tot Recorrido",
+        "Nom Personal",
+        "Celular",
+        "Cuadrilla",
+        "Item",
+        "Unidad Negocio",
+        "Servicio Electrico",
+        "Nº OM | Cod. Recibo",
+        "Descripcion Actividad",
+        "CECO",
+        "Estado",
+        "📷 KM Inicial",
+        "📷 KM Final",
+        "📍 Ubicación Inicial",
+        "📍 Ubicación Final",
+        "Observacion"
+
+    ]
+
+
+    tabla = (
+        df_mostrar[
+            columnas_mostrar
+        ].copy()
+    )
+
+
+    # ========================================================
+    # ESTILO TABLA
+    # ========================================================
+
+    st.markdown(
+        """
+        <style>
+
+        .tabla-supervisor {
+
+            width: 100%;
+
+            overflow-x: auto;
+
+        }
+
+
+        .tabla-supervisor table {
+
+            width: 100%;
+
+            border-collapse: collapse;
+
+            font-size: 13px;
+
+        }
+
+
+        /* ====================================================
+           ENCABEZADOS
+           ==================================================== */
+
+        .tabla-supervisor th {
+
+            background-color: #1f2937 !important;
+
+            color: #ffffff !important;
+
+            padding: 8px;
+
+            border: 1px solid #4b5563;
+
+            text-align: center;
+
+            white-space: nowrap;
+
+            font-weight: 700;
+
+        }
+
+
+        /* ====================================================
+           CELDAS
+           ==================================================== */
+
+        .tabla-supervisor td {
+
+            padding: 8px;
+
+            border: 1px solid #4b5563;
+
+            white-space: nowrap;
+
+        }
+
+
+        /* ====================================================
+           ENLACES
+           ==================================================== */
+
+        .tabla-supervisor a {
+
+            text-decoration: none;
+
+            font-weight: bold;
+
+        }
+
+
+        /* ====================================================
+           MODO OSCURO
+           ==================================================== */
+
+        @media (prefers-color-scheme: dark) {
+
+            .tabla-supervisor th {
+
+                background-color: #111827 !important;
+
+                color: #ffffff !important;
+
+                border-color: #4b5563 !important;
+
+            }
+
+
+            .tabla-supervisor td {
+
+                color: #f3f4f6 !important;
+
+                border-color: #4b5563 !important;
+
+            }
+
+        }
+
+        </style>
+        """,
+        unsafe_allow_html=True
+    )
+
+
+    # ========================================================
+    # CREAR HTML
+    # ========================================================
+
+    html = tabla.to_html(
+
+        index=False,
+
+        escape=False,
+
+        classes="tabla-supervisor"
+
+    )
+
+
+    st.markdown(
+
+        f"""
+        <div class="tabla-supervisor">
+
+            {html}
+
+        </div>
+        """,
+
+        unsafe_allow_html=True
+    )
 
 
 # ============================================================
-# GENERAR TABLA HTML
+# ACTUALIZAR
 # ============================================================
 
-tabla_html = df_mostrar.to_html(
-    index=False,
-    escape=False,
-    classes="tabla-supervisor",
-    border=0
+st.markdown("---")
+
+
+col_actualizar, col_info = st.columns(
+    [1, 4]
 )
 
 
-# ============================================================
-# MOSTRAR TABLA REAL
-# ============================================================
+with col_actualizar:
 
-st.markdown(
-    f"""
-    <div class="contenedor-tabla">
-        {tabla_html}
-    </div>
-    """,
-    unsafe_allow_html=True
-)
+    if st.button(
+        "🔄 Actualizar",
+        use_container_width=True
+    ):
+
+        st.rerun()
+
+
+with col_info:
+
+    st.caption(
+        "📡 Los datos se consultan directamente "
+        "desde la hoja Distribucion. Presione "
+        "«Actualizar» para consultar los registros "
+        "más recientes."
+    )
