@@ -1,7 +1,7 @@
 import streamlit as st
 import gspread
 import pandas as pd
-import time
+import re
 
 from google.oauth2.service_account import Credentials
 
@@ -11,8 +11,8 @@ from google.oauth2.service_account import Credentials
 # ============================================================
 
 st.set_page_config(
-    page_title="MONITOR KM_PERDIDAS",
-    page_icon="🚗",
+    page_title="MONITOR KM_DISTRIBUCION",
+    page_icon="🛻",
     layout="wide",
     initial_sidebar_state="collapsed"
 )
@@ -22,7 +22,9 @@ st.set_page_config(
 # CONFIGURACIÓN GOOGLE SHEETS
 # ============================================================
 
-NOMBRE_HOJA = "ControlPerdidas"
+NOMBRE_ARCHIVO = "KM_DISTRIBUCION"
+
+NOMBRE_HOJA = "Distribucion"
 
 SCOPES = [
     "https://www.googleapis.com/auth/spreadsheets",
@@ -42,7 +44,9 @@ def conectar_google():
         scopes=SCOPES
     )
 
-    cliente = gspread.authorize(credenciales)
+    cliente = gspread.authorize(
+        credenciales
+    )
 
     return cliente
 
@@ -52,11 +56,13 @@ def obtener_hoja():
 
     cliente = conectar_google()
 
-    spreadsheet = cliente.open_by_key(
-        st.secrets["SPREADSHEET_ID"]
+    spreadsheet = cliente.open(
+        NOMBRE_ARCHIVO
     )
 
-    hoja = spreadsheet.worksheet(NOMBRE_HOJA)
+    hoja = spreadsheet.worksheet(
+        NOMBRE_HOJA
+    )
 
     return hoja
 
@@ -70,17 +76,20 @@ def cargar_datos():
     hoja = obtener_hoja()
 
     valores = hoja.get(
-        "A:Q",
+        "A:U",
         value_render_option="FORMATTED_VALUE"
     )
 
     if not valores:
         return pd.DataFrame()
 
+
     encabezados = [
         "Fecha",
         "Placa",
+        "Hora Inicio",
         "Km Inicial",
+        "Hora Fin",
         "Km Final",
         "Tot Recorrido",
         "Nom Personal",
@@ -89,6 +98,8 @@ def cargar_datos():
         "Item",
         "Unidad Negocio",
         "Servicio Electrico",
+        "Nº OM | Cod. Recibo",
+        "Descripcion Actividad",
         "CECO",
         "Foto KM Inicial",
         "Foto KM Final",
@@ -97,52 +108,85 @@ def cargar_datos():
         "Observacion"
     ]
 
+
     filas = []
+
 
     for fila in valores[1:]:
 
         fila = list(fila)
 
-        if len(fila) < 17:
-            fila += [""] * (17 - len(fila))
 
-        filas.append(fila[:17])
+        if len(fila) < 21:
+
+            fila += [
+                ""
+            ] * (
+                21 - len(fila)
+            )
+
+
+        filas.append(
+            fila[:21]
+        )
+
 
     df = pd.DataFrame(
         filas,
         columns=encabezados
     )
 
-    # Eliminar filas completamente vacías
+
+    # --------------------------------------------------------
+    # ELIMINAR FILAS COMPLETAMENTE VACÍAS
+    # --------------------------------------------------------
+
     df = df[
         df.astype(str)
-        .apply(lambda x: x.str.strip().ne("").any(), axis=1)
+        .apply(
+            lambda x:
+            x.str.strip().ne("").any(),
+            axis=1
+        )
     ].copy()
+
 
     return df
 
 
 # ============================================================
-# NORMALIZAR DATOS
+# NORMALIZAR TEXTO
 # ============================================================
 
 def normalizar_texto(valor):
 
     if pd.isna(valor):
+
         return ""
 
-    return str(valor).strip()
 
+    return str(
+        valor
+    ).strip()
+
+
+# ============================================================
+# PREPARAR DATOS
+# ============================================================
 
 def preparar_datos(df):
 
     if df.empty:
+
         return df
+
 
     columnas_texto = [
         "Fecha",
         "Placa",
+        "Hora Inicio",
         "Km Inicial",
+        "Hora Fin",
         "Km Final",
         "Tot Recorrido",
         "Nom Personal",
@@ -151,6 +195,8 @@ def preparar_datos(df):
         "Item",
         "Unidad Negocio",
         "Servicio Electrico",
+        "Nº OM | Cod. Recibo",
+        "Descripcion Actividad",
         "CECO",
         "Foto KM Inicial",
         "Foto KM Final",
@@ -159,55 +205,150 @@ def preparar_datos(df):
         "Observacion"
     ]
 
-    for columna in columnas_texto:
-        df[columna] = df[columna].apply(normalizar_texto)
 
-    # --------------------------------------------------------
+    for columna in columnas_texto:
+
+        df[columna] = (
+            df[columna]
+            .apply(normalizar_texto)
+        )
+
+
+    # ========================================================
     # ESTADO
-    # --------------------------------------------------------
+    # ========================================================
 
     df["Estado"] = df.apply(
+
         lambda fila:
+
         "🟢 COMPLETADO"
+
         if fila["Km Final"] != ""
+
         else "🟠 PENDIENTE KM FINAL",
+
         axis=1
     )
+
 
     return df
 
 
 # ============================================================
-# FUNCIÓN PARA MOSTRAR ENLACES
+# EXTRAER URL DE HYPERLINK
 # ============================================================
 
-def convertir_enlace(valor, texto):
+def extraer_url(valor):
 
-    valor = normalizar_texto(valor)
+    valor = normalizar_texto(
+        valor
+    )
+
 
     if valor == "":
-        return "—"
 
-    # Si Google Sheets devuelve una fórmula HYPERLINK,
-    # intentamos extraer la URL.
+        return ""
+
+
+    # --------------------------------------------------------
+    # HYPERLINK
+    # --------------------------------------------------------
+
     if "HYPERLINK" in valor.upper():
-
-        import re
 
         encontrado = re.search(
             r'"(https?://[^"]+)"',
             valor
         )
 
+
         if encontrado:
-            url = encontrado.group(1)
 
-            return f'<a href="{url}" target="_blank">{texto}</a>'
+            return encontrado.group(1)
 
-    # Si ya es una URL directa
-    if valor.startswith("http://") or valor.startswith("https://"):
 
-        return f'<a href="{valor}" target="_blank">{texto}</a>'
+    # --------------------------------------------------------
+    # URL DIRECTA
+    # --------------------------------------------------------
+
+    if (
+        valor.startswith(
+            "http://"
+        )
+        or
+        valor.startswith(
+            "https://"
+        )
+    ):
+
+        return valor
+
+
+    return ""
+
+
+# ============================================================
+# CONVERTIR FOTO EN ENLACE
+# ============================================================
+
+def convertir_enlace_foto(
+    valor
+):
+
+    url = extraer_url(
+        valor
+    )
+
+
+    if url == "":
+
+        return "—"
+
+
+    return (
+        f'<a href="{url}" '
+        f'target="_blank">'
+        f'📷 Ver foto'
+        f'</a>'
+    )
+
+
+# ============================================================
+# CONVERTIR UBICACIÓN EN ENLACE
+# ============================================================
+
+def convertir_enlace_ubicacion(
+    valor
+):
+
+    valor = normalizar_texto(
+        valor
+    )
+
+
+    if valor == "":
+
+        return "—"
+
+
+    if (
+        valor.startswith(
+            "http://"
+        )
+        or
+        valor.startswith(
+            "https://"
+        )
+    ):
+
+        return (
+            f'<a href="{valor}" '
+            f'target="_blank">'
+            f'📍 Ver ubicación'
+            f'</a>'
+        )
+
 
     return valor
 
@@ -218,17 +359,21 @@ def convertir_enlace(valor, texto):
 
 st.markdown(
     """
-    <h1 style="text-align:center;">
-        🚗 MONITOR DE KILOMETRAJES
+    <h1 style="
+        text-align:center;
+        margin-bottom:0;
+    ">
+        🛻 MONITOR DE KILOMETRAJE
+        DISTRIBUCIÓN
     </h1>
 
     <p style="
         text-align:center;
         color:#666;
         font-size:16px;
-        margin-top:-10px;
+        margin-top:0;
     ">
-        Supervisión de registros de KM_PERDIDAS
+        Supervisión de registros de KM_DISTRIBUCION
     </p>
     """,
     unsafe_allow_html=True
@@ -246,37 +391,46 @@ try:
 except Exception as e:
 
     st.error(
-        "❌ No se pudo conectar con Google Sheets."
+        "❌ No se pudo conectar con "
+        "Google Sheets."
     )
+
+    st.exception(e)
 
     st.stop()
 
+
+# ============================================================
+# VALIDAR DATOS
+# ============================================================
 
 if df.empty:
 
     st.info(
-        "ℹ️ No existen registros en la hoja KM_PERDIDAS."
+        "ℹ️ No existen registros en "
+        "la hoja Distribucion."
     )
 
     st.stop()
 
 
-df = preparar_datos(df)
-
-
-# ============================================================
-# FECHA ACTUAL
-# ============================================================
-
-fecha_hoy = time.strftime("%d/%m/%Y")
+df = preparar_datos(
+    df
+)
 
 
 # ============================================================
 # FILTROS
 # ============================================================
 
-st.markdown("### 🔎 FILTROS")
+st.markdown(
+    "### 🔎 FILTROS"
+)
 
+
+# ============================================================
+# PRIMERA FILA
+# ============================================================
 
 col1, col2, col3, col4 = st.columns(4)
 
@@ -286,19 +440,33 @@ col1, col2, col3, col4 = st.columns(4)
 # ------------------------------------------------------------
 
 fechas = sorted(
-    df["Fecha"]
-    .dropna()
-    .astype(str)
-    .unique()
-    .tolist(),
+
+    [
+        x
+        for x in
+        df["Fecha"]
+        .dropna()
+        .unique()
+        .tolist()
+
+        if str(x).strip() != ""
+    ],
+
     reverse=True
 )
+
 
 with col1:
 
     fecha_filtro = st.selectbox(
+
         "📅 Fecha",
-        ["TODAS"] + fechas
+
+        [
+            "TODAS"
+        ]
+        +
+        fechas
     )
 
 
@@ -307,18 +475,32 @@ with col1:
 # ------------------------------------------------------------
 
 placas = sorted(
+
     [
-        x for x in
-        df["Placa"].dropna().unique().tolist()
+        x
+        for x in
+        df["Placa"]
+        .dropna()
+        .unique()
+        .tolist()
+
         if str(x).strip() != ""
     ]
+
 )
+
 
 with col2:
 
     placa_filtro = st.selectbox(
-        "🚗 Placa",
-        ["TODAS"] + placas
+
+        "🛻 Placa",
+
+        [
+            "TODAS"
+        ]
+        +
+        placas
     )
 
 
@@ -327,18 +509,32 @@ with col2:
 # ------------------------------------------------------------
 
 personales = sorted(
+
     [
-        x for x in
-        df["Nom Personal"].dropna().unique().tolist()
+        x
+        for x in
+        df["Nom Personal"]
+        .dropna()
+        .unique()
+        .tolist()
+
         if str(x).strip() != ""
     ]
+
 )
+
 
 with col3:
 
     personal_filtro = st.selectbox(
+
         "👷 Personal",
-        ["TODOS"] + personales
+
+        [
+            "TODOS"
+        ]
+        +
+        personales
     )
 
 
@@ -349,7 +545,9 @@ with col3:
 with col4:
 
     estado_filtro = st.selectbox(
+
         "📌 Estado",
+
         [
             "TODOS",
             "🟠 PENDIENTE KM FINAL",
@@ -359,7 +557,7 @@ with col4:
 
 
 # ============================================================
-# SEGUNDA FILA DE FILTROS
+# SEGUNDA FILA
 # ============================================================
 
 col5, col6, col7, col8 = st.columns(4)
@@ -370,18 +568,32 @@ col5, col6, col7, col8 = st.columns(4)
 # ------------------------------------------------------------
 
 unidades = sorted(
+
     [
-        x for x in
-        df["Unidad Negocio"].dropna().unique().tolist()
+        x
+        for x in
+        df["Unidad Negocio"]
+        .dropna()
+        .unique()
+        .tolist()
+
         if str(x).strip() != ""
     ]
+
 )
+
 
 with col5:
 
     unidad_filtro = st.selectbox(
+
         "🏢 Unidad de Negocio",
-        ["TODAS"] + unidades
+
+        [
+            "TODAS"
+        ]
+        +
+        unidades
     )
 
 
@@ -390,18 +602,32 @@ with col5:
 # ------------------------------------------------------------
 
 servicios = sorted(
+
     [
-        x for x in
-        df["Servicio Electrico"].dropna().unique().tolist()
+        x
+        for x in
+        df["Servicio Electrico"]
+        .dropna()
+        .unique()
+        .tolist()
+
         if str(x).strip() != ""
     ]
+
 )
+
 
 with col6:
 
     servicio_filtro = st.selectbox(
+
         "⚡ Servicio Eléctrico",
-        ["TODOS"] + servicios
+
+        [
+            "TODOS"
+        ]
+        +
+        servicios
     )
 
 
@@ -410,18 +636,32 @@ with col6:
 # ------------------------------------------------------------
 
 items = sorted(
+
     [
-        x for x in
-        df["Item"].dropna().unique().tolist()
+        x
+        for x in
+        df["Item"]
+        .dropna()
+        .unique()
+        .tolist()
+
         if str(x).strip() != ""
     ]
+
 )
+
 
 with col7:
 
     item_filtro = st.selectbox(
+
         "📋 Ítem",
-        ["TODOS"] + items
+
+        [
+            "TODOS"
+        ]
+        +
+        items
     )
 
 
@@ -430,18 +670,32 @@ with col7:
 # ------------------------------------------------------------
 
 cecos = sorted(
+
     [
-        x for x in
-        df["CECO"].dropna().unique().tolist()
+        x
+        for x in
+        df["CECO"]
+        .dropna()
+        .unique()
+        .tolist()
+
         if str(x).strip() != ""
     ]
+
 )
+
 
 with col8:
 
     ceco_filtro = st.selectbox(
+
         "🏷️ CECO",
-        ["TODOS"] + cecos
+
+        [
+            "TODOS"
+        ]
+        +
+        cecos
     )
 
 
@@ -455,93 +709,121 @@ df_filtrado = df.copy()
 if fecha_filtro != "TODAS":
 
     df_filtrado = df_filtrado[
-        df_filtrado["Fecha"] == fecha_filtro
+        df_filtrado["Fecha"]
+        == fecha_filtro
     ]
 
 
 if placa_filtro != "TODAS":
 
     df_filtrado = df_filtrado[
-        df_filtrado["Placa"] == placa_filtro
+        df_filtrado["Placa"]
+        == placa_filtro
     ]
 
 
 if personal_filtro != "TODOS":
 
     df_filtrado = df_filtrado[
-        df_filtrado["Nom Personal"] == personal_filtro
+        df_filtrado["Nom Personal"]
+        == personal_filtro
     ]
 
 
 if estado_filtro != "TODOS":
 
     df_filtrado = df_filtrado[
-        df_filtrado["Estado"] == estado_filtro
+        df_filtrado["Estado"]
+        == estado_filtro
     ]
 
 
 if unidad_filtro != "TODAS":
 
     df_filtrado = df_filtrado[
-        df_filtrado["Unidad Negocio"] == unidad_filtro
+        df_filtrado["Unidad Negocio"]
+        == unidad_filtro
     ]
 
 
 if servicio_filtro != "TODOS":
 
     df_filtrado = df_filtrado[
-        df_filtrado["Servicio Electrico"] == servicio_filtro
+        df_filtrado["Servicio Electrico"]
+        == servicio_filtro
     ]
 
 
 if item_filtro != "TODOS":
 
     df_filtrado = df_filtrado[
-        df_filtrado["Item"] == item_filtro
+        df_filtrado["Item"]
+        == item_filtro
     ]
 
 
 if ceco_filtro != "TODOS":
 
     df_filtrado = df_filtrado[
-        df_filtrado["CECO"] == ceco_filtro
+        df_filtrado["CECO"]
+        == ceco_filtro
     ]
 
 
 # ============================================================
-# INDICADORES
+# RESUMEN
 # ============================================================
 
-total_registros = len(df_filtrado)
+total_registros = len(
+    df_filtrado
+)
+
 
 total_vehiculos = (
+
     df_filtrado["Placa"]
-    .replace("", pd.NA)
+    .replace(
+        "",
+        pd.NA
+    )
     .dropna()
     .nunique()
 )
+
 
 total_personal = (
+
     df_filtrado["Nom Personal"]
-    .replace("", pd.NA)
+    .replace(
+        "",
+        pd.NA
+    )
     .dropna()
     .nunique()
 )
 
+
 total_pendientes = len(
+
     df_filtrado[
-        df_filtrado["Km Final"] == ""
+        df_filtrado["Km Final"]
+        == ""
     ]
 )
+
 
 total_completados = len(
+
     df_filtrado[
-        df_filtrado["Km Final"] != ""
+        df_filtrado["Km Final"]
+        != ""
     ]
 )
 
 
-st.markdown("### 📊 RESUMEN")
+st.markdown(
+    "### 📊 RESUMEN"
+)
 
 
 k1, k2, k3, k4, k5 = st.columns(5)
@@ -558,7 +840,7 @@ with k1:
 with k2:
 
     st.metric(
-        "🚗 Vehículos",
+        "🛻 Vehículos",
         total_vehiculos
     )
 
@@ -591,189 +873,296 @@ with k5:
 # TABLA PRINCIPAL
 # ============================================================
 
-st.markdown("### 📋 REGISTROS")
+st.markdown(
+    "### 📋 REGISTROS"
+)
 
 
 if df_filtrado.empty:
 
     st.warning(
-        "No existen registros con los filtros seleccionados."
+        "No existen registros con "
+        "los filtros seleccionados."
     )
 
 else:
 
-    df_mostrar = df_filtrado.copy()
+    df_mostrar = (
+        df_filtrado.copy()
+    )
+
 
     # --------------------------------------------------------
-    # CONVERTIR FOTOS EN ENLACES
+    # FOTOS
     # --------------------------------------------------------
 
-    df_mostrar["📷 KM Inicial"] = df_mostrar[
-        "Foto KM Inicial"
-    ].apply(
-        lambda x: convertir_enlace(
-            x,
-            "📷 Ver foto"
+    df_mostrar[
+        "📷 KM Inicial"
+    ] = (
+
+        df_mostrar[
+            "Foto KM Inicial"
+        ]
+
+        .apply(
+            convertir_enlace_foto
         )
     )
 
-    df_mostrar["📷 KM Final"] = df_mostrar[
-        "Foto KM Final"
-    ].apply(
-        lambda x: convertir_enlace(
-            x,
-            "📷 Ver foto"
+
+    df_mostrar[
+        "📷 KM Final"
+    ] = (
+
+        df_mostrar[
+            "Foto KM Final"
+        ]
+
+        .apply(
+            convertir_enlace_foto
         )
     )
+
 
     # --------------------------------------------------------
     # UBICACIONES
     # --------------------------------------------------------
 
-    def enlace_ubicacion(valor):
+    df_mostrar[
+        "📍 Ubicación Inicial"
+    ] = (
 
-        valor = normalizar_texto(valor)
+        df_mostrar[
+            "Ubicacion Inicial"
+        ]
 
-        if valor == "":
-            return "—"
-
-        if valor.startswith("http://") or valor.startswith("https://"):
-
-            return (
-                f'<a href="{valor}" target="_blank">'
-                '📍 Ver ubicación'
-                '</a>'
-            )
-
-        return valor
-
-
-    df_mostrar["📍 Ubicación Inicial"] = (
-        df_mostrar["Ubicacion Inicial"]
-        .apply(enlace_ubicacion)
+        .apply(
+            convertir_enlace_ubicacion
+        )
     )
 
 
-    df_mostrar["📍 Ubicación Final"] = (
-        df_mostrar["Ubicacion Final"]
-        .apply(enlace_ubicacion)
+    df_mostrar[
+        "📍 Ubicación Final"
+    ] = (
+
+        df_mostrar[
+            "Ubicacion Final"
+        ]
+
+        .apply(
+            convertir_enlace_ubicacion
+        )
     )
 
 
     # --------------------------------------------------------
-    # SELECCIONAR COLUMNAS
+    # COLUMNAS
     # --------------------------------------------------------
 
     columnas_mostrar = [
+
         "Fecha",
         "Placa",
+        "Hora Inicio",
+        "Km Inicial",
+        "Hora Fin",
+        "Km Final",
+        "Tot Recorrido",
         "Nom Personal",
         "Celular",
         "Cuadrilla",
         "Item",
         "Unidad Negocio",
         "Servicio Electrico",
+        "Nº OM | Cod. Recibo",
+        "Descripcion Actividad",
         "CECO",
-        "Km Inicial",
-        "Km Final",
-        "Tot Recorrido",
         "Estado",
         "📷 KM Inicial",
         "📷 KM Final",
         "📍 Ubicación Inicial",
         "📍 Ubicación Final",
         "Observacion"
+
     ]
 
-    tabla = df_mostrar[columnas_mostrar].copy()
 
+    tabla = (
+        df_mostrar[
+            columnas_mostrar
+        ].copy()
+    )
+
+
+    # ========================================================
+    # ESTILO TABLA
+    # ========================================================
 
     st.markdown(
         """
         <style>
-    
+
         .tabla-supervisor {
+
             width: 100%;
+
             overflow-x: auto;
+
         }
-    
+
+
         .tabla-supervisor table {
+
             width: 100%;
+
             border-collapse: collapse;
+
             font-size: 13px;
+
         }
-    
-        /* ENCABEZADOS */
+
+
+        /* ====================================================
+           ENCABEZADOS
+           ==================================================== */
+
         .tabla-supervisor th {
+
             background-color: #1f2937 !important;
+
             color: #ffffff !important;
+
             padding: 8px;
+
             border: 1px solid #4b5563;
+
             text-align: center;
+
             white-space: nowrap;
+
             font-weight: 700;
+
         }
-    
-        /* CELDAS */
+
+
+        /* ====================================================
+           CELDAS
+           ==================================================== */
+
         .tabla-supervisor td {
+
             padding: 8px;
+
             border: 1px solid #4b5563;
+
             white-space: nowrap;
+
         }
-    
-        /* ENLACES */
+
+
+        /* ====================================================
+           ENLACES
+           ==================================================== */
+
         .tabla-supervisor a {
+
             text-decoration: none;
+
             font-weight: bold;
+
         }
-    
-        /* MODO OSCURO */
+
+
+        /* ====================================================
+           MODO OSCURO
+           ==================================================== */
+
         @media (prefers-color-scheme: dark) {
-    
+
             .tabla-supervisor th {
+
                 background-color: #111827 !important;
+
                 color: #ffffff !important;
+
                 border-color: #4b5563 !important;
+
             }
-    
+
+
             .tabla-supervisor td {
+
                 color: #f3f4f6 !important;
+
                 border-color: #4b5563 !important;
+
             }
+
         }
-    
+
         </style>
         """,
         unsafe_allow_html=True
     )
+
+
     # ========================================================
-    # HTML DE TABLA
+    # CREAR HTML
     # ========================================================
 
     html = tabla.to_html(
+
         index=False,
+
         escape=False,
+
         classes="tabla-supervisor"
+
     )
+
 
     st.markdown(
+
         f"""
         <div class="tabla-supervisor">
+
             {html}
+
         </div>
         """,
+
         unsafe_allow_html=True
     )
+
+
+# ============================================================
+# ACTUALIZAR
+# ============================================================
+
 st.markdown("---")
 
-col_actualizar, col_info = st.columns([1, 4])
+
+col_actualizar, col_info = st.columns(
+    [1, 4]
+)
+
 
 with col_actualizar:
-    if st.button("🔄 Actualizar", use_container_width=True):
+
+    if st.button(
+        "🔄 Actualizar",
+        use_container_width=True
+    ):
+
         st.rerun()
 
+
 with col_info:
+
     st.caption(
-        "📡 Los datos se consultan directamente desde Google Sheets. "
-        "Presione «Actualizar» para consultar los registros más recientes."
+        "📡 Los datos se consultan directamente "
+        "desde la hoja Distribucion. Presione "
+        "«Actualizar» para consultar los registros "
+        "más recientes."
     )
