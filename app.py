@@ -81,6 +81,7 @@ def cargar_datos():
     )
 
     if not valores:
+
         return pd.DataFrame()
 
 
@@ -119,9 +120,7 @@ def cargar_datos():
 
         if len(fila) < 21:
 
-            fila += [
-                ""
-            ] * (
+            fila += [""] * (
                 21 - len(fila)
             )
 
@@ -137,9 +136,9 @@ def cargar_datos():
     )
 
 
-    # --------------------------------------------------------
+    # ========================================================
     # ELIMINAR FILAS COMPLETAMENTE VACÍAS
-    # --------------------------------------------------------
+    # ========================================================
 
     df = df[
         df.astype(str)
@@ -182,6 +181,7 @@ def preparar_datos(df):
 
 
     columnas_texto = [
+
         "Fecha",
         "Placa",
         "Hora Inicio",
@@ -203,6 +203,7 @@ def preparar_datos(df):
         "Ubicacion Inicial",
         "Ubicacion Final",
         "Observacion"
+
     ]
 
 
@@ -229,6 +230,7 @@ def preparar_datos(df):
         else "🟠 PENDIENTE KM FINAL",
 
         axis=1
+
     )
 
 
@@ -236,7 +238,7 @@ def preparar_datos(df):
 
 
 # ============================================================
-# EXTRAER URL DE HYPERLINK
+# EXTRAER URL
 # ============================================================
 
 def extraer_url(valor):
@@ -251,9 +253,9 @@ def extraer_url(valor):
         return ""
 
 
-    # --------------------------------------------------------
-    # HYPERLINK
-    # --------------------------------------------------------
+    # ========================================================
+    # GOOGLE SHEETS HYPERLINK
+    # ========================================================
 
     if "HYPERLINK" in valor.upper():
 
@@ -268,18 +270,14 @@ def extraer_url(valor):
             return encontrado.group(1)
 
 
-    # --------------------------------------------------------
+    # ========================================================
     # URL DIRECTA
-    # --------------------------------------------------------
+    # ========================================================
 
     if (
-        valor.startswith(
-            "http://"
-        )
+        valor.startswith("http://")
         or
-        valor.startswith(
-            "https://"
-        )
+        valor.startswith("https://")
     ):
 
         return valor
@@ -292,9 +290,7 @@ def extraer_url(valor):
 # CONVERTIR FOTO EN ENLACE
 # ============================================================
 
-def convertir_enlace_foto(
-    valor
-):
+def convertir_enlace_foto(valor):
 
     url = extraer_url(
         valor
@@ -318,9 +314,7 @@ def convertir_enlace_foto(
 # CONVERTIR UBICACIÓN EN ENLACE
 # ============================================================
 
-def convertir_enlace_ubicacion(
-    valor
-):
+def convertir_enlace_ubicacion(valor):
 
     valor = normalizar_texto(
         valor
@@ -333,13 +327,9 @@ def convertir_enlace_ubicacion(
 
 
     if (
-        valor.startswith(
-            "http://"
-        )
+        valor.startswith("http://")
         or
-        valor.startswith(
-            "https://"
-        )
+        valor.startswith("https://")
     ):
 
         return (
@@ -363,8 +353,7 @@ st.markdown(
         text-align:center;
         margin-bottom:0;
     ">
-        🛻 MONITOR DE KILOMETRAJE
-        DISTRIBUCIÓN
+        🛻 MONITOR DE KILOMETRAJE DISTRIBUCIÓN
     </h1>
 
     <p style="
@@ -391,8 +380,7 @@ try:
 except Exception as e:
 
     st.error(
-        "❌ No se pudo conectar con "
-        "Google Sheets."
+        "❌ No se pudo conectar con Google Sheets."
     )
 
     st.exception(e)
@@ -407,12 +395,15 @@ except Exception as e:
 if df.empty:
 
     st.info(
-        "ℹ️ No existen registros en "
-        "la hoja Distribucion."
+        "ℹ️ No existen registros en la hoja Distribucion."
     )
 
     st.stop()
 
+
+# ============================================================
+# PREPARAR DATOS
+# ============================================================
 
 df = preparar_datos(
     df
@@ -435,9 +426,9 @@ st.markdown(
 col1, col2, col3, col4 = st.columns(4)
 
 
-# ------------------------------------------------------------
+# ============================================================
 # FECHA
-# ------------------------------------------------------------
+# ============================================================
 
 fechas = sorted(
 
@@ -453,6 +444,7 @@ fechas = sorted(
     ],
 
     reverse=True
+
 )
 
 
@@ -467,12 +459,13 @@ with col1:
         ]
         +
         fechas
+
     )
 
 
-# ------------------------------------------------------------
+# ============================================================
 # PLACA
-# ------------------------------------------------------------
+# ============================================================
 
 placas = sorted(
 
@@ -501,12 +494,13 @@ with col2:
         ]
         +
         placas
+
     )
 
 
-# ------------------------------------------------------------
+# ============================================================
 # PERSONAL
-# ------------------------------------------------------------
+# ============================================================
 
 personales = sorted(
 
@@ -535,12 +529,13 @@ with col3:
         ]
         +
         personales
+
     )
 
 
-# ------------------------------------------------------------
+# ============================================================
 # ESTADO
-# ------------------------------------------------------------
+# ============================================================
 
 with col4:
 
@@ -553,6 +548,7 @@ with col4:
             "🟠 PENDIENTE KM FINAL",
             "🟢 COMPLETADO"
         ]
+
     )
 
 
@@ -563,9 +559,9 @@ with col4:
 col5, col6, col7, col8 = st.columns(4)
 
 
-# ------------------------------------------------------------
+# ============================================================
 # UNIDAD
-# ------------------------------------------------------------
+# ============================================================
 
 unidades = sorted(
 
@@ -594,12 +590,13 @@ with col5:
         ]
         +
         unidades
+
     )
 
 
-# ------------------------------------------------------------
+# ============================================================
 # SERVICIO
-# ------------------------------------------------------------
+# ============================================================
 
 servicios = sorted(
 
@@ -628,12 +625,13 @@ with col6:
         ]
         +
         servicios
+
     )
 
 
-# ------------------------------------------------------------
+# ============================================================
 # ITEM
-# ------------------------------------------------------------
+# ============================================================
 
 items = sorted(
 
@@ -662,12 +660,13 @@ with col7:
         ]
         +
         items
+
     )
 
 
-# ------------------------------------------------------------
+# ============================================================
 # CECO
-# ------------------------------------------------------------
+# ============================================================
 
 cecos = sorted(
 
@@ -696,6 +695,7 @@ with col8:
         ]
         +
         cecos
+
     )
 
 
@@ -782,44 +782,44 @@ total_registros = len(
 total_vehiculos = (
 
     df_filtrado["Placa"]
-    .replace(
-        "",
-        pd.NA
-    )
+    .replace("", pd.NA)
     .dropna()
     .nunique()
+
 )
 
 
 total_personal = (
 
     df_filtrado["Nom Personal"]
-    .replace(
-        "",
-        pd.NA
-    )
+    .replace("", pd.NA)
     .dropna()
     .nunique()
+
 )
 
 
 total_pendientes = len(
 
     df_filtrado[
-        df_filtrado["Km Final"]
-        == ""
+        df_filtrado["Km Final"] == ""
     ]
+
 )
 
 
 total_completados = len(
 
     df_filtrado[
-        df_filtrado["Km Final"]
-        != ""
+        df_filtrado["Km Final"] != ""
     ]
+
 )
 
+
+# ============================================================
+# MOSTRAR RESUMEN
+# ============================================================
 
 st.markdown(
     "### 📊 RESUMEN"
@@ -887,14 +887,12 @@ if df_filtrado.empty:
 
 else:
 
-    df_mostrar = (
-        df_filtrado.copy()
-    )
+    df_mostrar = df_filtrado.copy()
 
 
-    # --------------------------------------------------------
+    # ========================================================
     # FOTOS
-    # --------------------------------------------------------
+    # ========================================================
 
     df_mostrar[
         "📷 KM Inicial"
@@ -907,6 +905,7 @@ else:
         .apply(
             convertir_enlace_foto
         )
+
     )
 
 
@@ -921,12 +920,13 @@ else:
         .apply(
             convertir_enlace_foto
         )
+
     )
 
 
-    # --------------------------------------------------------
+    # ========================================================
     # UBICACIONES
-    # --------------------------------------------------------
+    # ========================================================
 
     df_mostrar[
         "📍 Ubicación Inicial"
@@ -939,6 +939,7 @@ else:
         .apply(
             convertir_enlace_ubicacion
         )
+
     )
 
 
@@ -953,12 +954,13 @@ else:
         .apply(
             convertir_enlace_ubicacion
         )
+
     )
 
 
-    # --------------------------------------------------------
-    # COLUMNAS
-    # --------------------------------------------------------
+    # ========================================================
+    # COLUMNAS QUE SE MOSTRARÁN
+    # ========================================================
 
     columnas_mostrar = [
 
@@ -988,20 +990,22 @@ else:
     ]
 
 
-    tabla = (
-        df_mostrar[
-            columnas_mostrar
-        ].copy()
-    )
+    tabla = df_mostrar[
+        columnas_mostrar
+    ].copy()
 
 
     # ========================================================
-    # ESTILO TABLA
+    # ESTILO DE TABLA
     # ========================================================
 
     st.markdown(
         """
         <style>
+
+        /* ====================================================
+           CONTENEDOR
+           ==================================================== */
 
         .tabla-supervisor {
 
@@ -1009,8 +1013,14 @@ else:
 
             overflow-x: auto;
 
+            margin-top: 10px;
+
         }
 
+
+        /* ====================================================
+           TABLA
+           ==================================================== */
 
         .tabla-supervisor table {
 
@@ -1019,6 +1029,8 @@ else:
             border-collapse: collapse;
 
             font-size: 13px;
+
+            min-width: 1800px;
 
         }
 
@@ -1035,7 +1047,7 @@ else:
 
             padding: 8px;
 
-            border: 1px solid #4b5563;
+            border: 1px solid #4b5563 !important;
 
             text-align: center;
 
@@ -1054,9 +1066,11 @@ else:
 
             padding: 8px;
 
-            border: 1px solid #4b5563;
+            border: 1px solid #4b5563 !important;
 
             white-space: nowrap;
+
+            text-align: left;
 
         }
 
@@ -1097,6 +1111,48 @@ else:
 
                 border-color: #4b5563 !important;
 
+                background-color: #1f2937 !important;
+
+            }
+
+
+            .tabla-supervisor a {
+
+                color: #60a5fa !important;
+
+            }
+
+        }
+
+
+        /* ====================================================
+           MODO CLARO
+           ==================================================== */
+
+        @media (prefers-color-scheme: light) {
+
+            .tabla-supervisor th {
+
+                background-color: #1f2937 !important;
+
+                color: #ffffff !important;
+
+            }
+
+
+            .tabla-supervisor td {
+
+                color: #111827 !important;
+
+                background-color: #ffffff !important;
+
+            }
+
+
+            .tabla-supervisor a {
+
+                color: #2563eb !important;
+
             }
 
         }
@@ -1108,7 +1164,7 @@ else:
 
 
     # ========================================================
-    # CREAR HTML
+    # GENERAR HTML
     # ========================================================
 
     html = tabla.to_html(
@@ -1122,6 +1178,10 @@ else:
     )
 
 
+    # ========================================================
+    # MOSTRAR TABLA
+    # ========================================================
+
     st.markdown(
 
         f"""
@@ -1133,11 +1193,12 @@ else:
         """,
 
         unsafe_allow_html=True
+
     )
 
 
 # ============================================================
-# ACTUALIZAR
+# BOTÓN ACTUALIZAR
 # ============================================================
 
 st.markdown("---")
